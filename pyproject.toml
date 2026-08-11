@@ -63,7 +63,7 @@ test = [
 [project.urls]
 homepage = "https://mesas.readthedocs.io/"
 documentation = "https://mesas.readthedocs.io/"
-repository = "https://github.com/charman2/mesas"
+repository = "https://github.com/JH-LandHydroLab/mesas"
 
 [tool.hatch.build.targets.wheel]
 packages = ["mesas"]

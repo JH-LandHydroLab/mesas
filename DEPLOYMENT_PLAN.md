@@ -34,7 +34,7 @@ and gives clean semver going forward.
 The name is unclaimed, so the first upload registers it.
 
 1. Configure **trusted publishing** on PyPI (project `mesas` → the
-   `charman2/mesas` repo + a `publish.yml` workflow) — no API tokens needed.
+   `JH-LandHydroLab/mesas` repo + a `publish.yml` workflow) — no API tokens needed.
 2. Add a publish workflow triggered on GitHub release / tag: `python -m build`
    then `pypa/gh-action-pypi-publish`. Dry-run against TestPyPI first.
 3. Tag and publish `v2.0.0a1`.

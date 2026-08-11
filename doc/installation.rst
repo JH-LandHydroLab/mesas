@@ -28,7 +28,7 @@ From source
 
 To install the latest development version from GitHub::
 
-    git clone https://github.com/charman2/mesas.git
+    git clone https://github.com/JH-LandHydroLab/mesas.git
     cd mesas
     pip install -e .
 

@@ -29,11 +29,11 @@ mesas.utils
 mesas.utils.vis
      Visualization of SAS model results
 
-I hope to expand these in the future, and welcome contributors through the `GitHub repository <https://github.com/charman2/mesas>`_
+I hope to expand these in the future, and welcome contributors through the `GitHub repository <https://github.com/JH-LandHydroLab/mesas>`_
 
 Support, bugs, suggestions, etc.
 --------------------------------
-If you find a bug please open an issue on GitHub here: https://github.com/charman2/mesas/issues
+If you find a bug please open an issue on GitHub here: https://github.com/JH-LandHydroLab/mesas/issues
 
 You can also use the issue tracer to make suggestions to improve the code.
 

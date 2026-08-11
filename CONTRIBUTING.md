@@ -4,7 +4,7 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/charman2/mesas.git
+   git clone https://github.com/JH-LandHydroLab/mesas.git
    cd mesas
    ```
 

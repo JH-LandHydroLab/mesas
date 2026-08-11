@@ -10,7 +10,7 @@ authors:
   - family-names: "Xu Fei"
     given-names: "Esther"
     affiliation: "Johns Hopkins University"
-repository-code: "https://github.com/charman2/mesas"
+repository-code: "https://github.com/JH-LandHydroLab/mesas"
 url: "https://mesas.readthedocs.io/"
 license: MIT
 preferred-citation:

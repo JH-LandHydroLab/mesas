@@ -21,7 +21,7 @@ JIT-compiled with [Numba](https://numba.pydata.org/) -- no Fortran compiler
 needed. It is currently in beta. Install the latest development version from
 source:
 
-    git clone https://github.com/charman2/mesas.git
+    git clone https://github.com/JH-LandHydroLab/mesas.git
     cd mesas
     pip install -e .
 
