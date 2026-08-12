@@ -124,11 +124,15 @@ class Model:
 
     def copy_without_results(self):
         #returns a new instance of the model, but clears any results
-        return Model(copy.deepcopy(self._data_df),
-                     copy.deepcopy(self._sas_specs),
-                     copy.deepcopy(self._solute_parameters),
-                     copy.deepcopy(self._components_to_learn),
-                     **copy.deepcopy(self._options))
+        return Model(
+            copy.deepcopy(self._data_df),
+            config={
+                "sas_specs": copy.deepcopy(self._sas_specs),
+                "solute_parameters": copy.deepcopy(self._solute_parameters),
+                "options": copy.deepcopy(self._options),
+            },
+            # components_to_learn=copy.deepcopy(self._components_to_learn),
+        )
 
     def subdivided_copy(self, flux, label, segment):
         """
@@ -344,8 +348,10 @@ class Model:
         alpha = np.ones((self._timeseries_length, self._numflux, numsol), dtype=dtype)
         if self.solute_parameters is not None:
             def _get_array(param, N):
-                if param in self.data_df:
+                if isinstance(param, str) and param in self.data_df:
                     return self.data_df[param].values
+                elif isinstance(param, np.ndarray):
+                    return param
                 else:
                     return param * np.ones(N)
 
