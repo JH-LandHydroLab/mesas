@@ -6,24 +6,21 @@ For more information see the free HydroLearn course: [Tracers and transit times 
 
 ## Installation
 
-### Stable release (v1.0, Fortran)
-
-The current stable release on conda-forge is the older Fortran-based v1.0:
+Install with Conda:
 
     conda install -c conda-forge mesas
 
-This installs any additional dependencies at the same time.
+or with pip:
 
-### v2.0 (pure Python, in beta)
+    pip install mesas
 
-Version 2.0 is a pure Python reimplementation whose numerical solver is
-JIT-compiled with [Numba](https://numba.pydata.org/) -- no Fortran compiler
-needed. It is currently in beta. Install the latest development version from
-source:
+Either installs mesas v2 and all of its dependencies. As of v2, mesas is pure
+Python — the numerical solver is JIT-compiled with
+[Numba](https://numba.pydata.org/), so no Fortran compiler is needed.
 
-    git clone https://github.com/JH-LandHydroLab/mesas.git
-    cd mesas
-    pip install -e .
+The legacy Fortran-based v1.x remains available by pinning the version, e.g.
+`conda install -c conda-forge mesas=1.20240418`. To work on the development
+version, clone this repository and `pip install -e .`
 
 Further instructions can be found here: https://mesas.readthedocs.io/en/latest/installation.html
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mesas"
-version = "2.0.0a1"
+version = "2.0.0"
 description = "MESAS - Multiscale Estimation of StorAge Selection."
 readme = "README.md"
 authors = [
@@ -23,7 +23,7 @@ keywords = [
 license = "MIT"
 license-files = ["LICENSE.txt"]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Science/Research",
   "Operating System :: OS Independent",
   "Programming Language :: Python",

@@ -15,13 +15,13 @@ Or using Conda::
     conda install -c conda-forge mesas
 
 Either method will install all required dependencies (NumPy, SciPy, pandas,
-Numba, matplotlib).
+Numba, matplotlib). No Fortran compiler is needed: as of v2, mesas is pure
+Python, with the numerical solver JIT-compiled by Numba.
 
 .. note::
 
-   The releases currently available on PyPI and conda-forge are the older
-   Fortran-based v1.0. Installing from source (see below) gives the newer
-   pure-Python/Numba version, which does not require a compiler.
+   The legacy Fortran-based v1.x remains available by pinning the version,
+   e.g. ``conda install -c conda-forge mesas=1.20240418``.
 
 From source
 ===========
