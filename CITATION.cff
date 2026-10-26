@@ -13,6 +13,11 @@ authors:
 repository-code: "https://github.com/JH-LandHydroLab/mesas"
 url: "https://mesas.readthedocs.io/"
 license: MIT
+doi: "10.5281/zenodo.7144730"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.7144730"
+    description: "Concept DOI for all versions (resolves to the latest archived release)"
 preferred-citation:
   type: article
   title: "mesas.py v1.0: a flexible Python package for modeling solute transport and transit times using StorAge Selection functions"
