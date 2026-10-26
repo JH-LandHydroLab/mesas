@@ -1,18 +1,41 @@
+# Build artifacts
 build/
-misc/
-mesas.egg-info/
+builddir/
 dist/
+mesas.egg-info/
+*.so
 *.pyc
+__pycache__/
+
+# Editor/IDE
 *.swo
 *.swp
-mesas/junk/
-mesas/dev/
-doc/_build/
-.idea/
-.vscode/
+/.idea/
+/.vscode/
+/.claude/
+
+# Project-specific excludes
+misc/
+/mesas/junk/
+/mesas/dev/
+/doc/_build/
+*/_build/*
 examples/benchmark/Ciaran/
 examples/miniLEO
-test/test.log
-*.so
-*/_build/*
+debug/
+
+# Generated files
 *.log
+test/test.log
+test/*.pdf
+examples/Archive.zip
+examples/data_with_results.csv
+test/MESASct.py
+.coverage
+*.egg-info/
+.pytest_cache/
+
+# Hypothesis property-testing cache
+.hypothesis/
+.ruff_cache/
+.DS_Store

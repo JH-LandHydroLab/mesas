@@ -1,16 +1,16 @@
 # %%
-from datetime import time
-import numpy as np
-import pandas as pd
-import pytest
-import matplotlib.pyplot as plt
 import logging
+import os
 import time
 
-from mesas.sas.model import Model
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 # from scipy.stats import gamma, beta
 from scipy.special import lambertw
+
+from mesas.sas.model import Model
 
 # %%
 logging.basicConfig(filename="test.log", level=logging.INFO)
@@ -23,10 +23,7 @@ logging.basicConfig(filename="test.log", level=logging.INFO)
 
 def M(delta, i):
     return np.where(
-        i == 0,
-        1,
-        -lambertw(-np.exp(-1 - (i * delta) / 2.0))
-        * (2 + lambertw(-np.exp(-1 - (i * delta) / 2.0))),
+        i == 0, 1, -lambertw(-np.exp(-1 - (i * delta) / 2.0)) * (2 + lambertw(-np.exp(-1 - (i * delta) / 2.0)))
     )
 
 
@@ -36,9 +33,7 @@ def RMS(x):
 
 def partial_piston_pQdisc(delta, i):
     n = 2 / delta - 0.5
-    return np.where(
-        i <= np.floor(n), delta / 2, np.where(i > np.ceil(n), 0, delta / 2 * (i - n))
-    )
+    return np.where(i <= np.floor(n), delta / 2, np.where(i > np.ceil(n), 0, delta / 2 * (i - n)))
 
 
 steady_benchmarks = {
@@ -48,25 +43,17 @@ steady_benchmarks = {
             # "args": {"a": 1.0-0.000000001, "b":1.0-0.000000001, "scale": "S_0", "loc": "S_m"},
             "ST": ["S_m", "S_m0"]
         },
-        "pQdisc": lambda delta, i: (-1 + np.exp(delta)) ** 2
-        / (np.exp((1 + i) * delta) * delta),
-        "pQdisc0": lambda delta: (1 + np.exp(delta) * (-1 + delta))
-        / (np.exp(delta) * delta),
+        "pQdisc": lambda delta, i: (-1 + np.exp(delta)) ** 2 / (np.exp((1 + i) * delta) * delta),
+        "pQdisc0": lambda delta: (1 + np.exp(delta) * (-1 + delta)) / (np.exp(delta) * delta),
         "subplot": 0,
         "distname": "Uniform",
     },
     "Biased young (Kumaraswamy)": {
         "spec": {
             "func": "kumaraswamy",
-            "args": {
-                "a": 1.0 - 0.000000001,
-                "b": 2.0 - 0.000000001,
-                "scale": "S_0",
-                "loc": "S_m",
-            },
+            "args": {"a": 1.0 - 0.000000001, "b": 2.0 - 0.000000001, "scale": "S_0", "loc": "S_m"},
         },
-        "pQdisc": lambda delta, i: (2 * delta)
-        / ((1 + (-1 + i) * delta) * (1 + i * delta) * (1 + delta + i * delta)),
+        "pQdisc": lambda delta, i: (2 * delta) / ((1 + (-1 + i) * delta) * (1 + i * delta) * (1 + delta + i * delta)),
         "pQdisc0": lambda delta: delta / (1 + delta),
         "subplot": 3,
         "distname": "Kumaraswamy(1,2)",
@@ -77,10 +64,8 @@ steady_benchmarks = {
             "args": {"a": 1.0 - 0.00001, "scale": "S_0", "loc": "S_m"},
         },
         "pQdisc": lambda delta, i: (
-            2 * np.log(1 + i * delta)
-            - np.log((1 + (-1 + i) * delta) * (1 + delta + i * delta))
-        )
-        / delta,
+            (2 * np.log(1 + i * delta) - np.log((1 + (-1 + i) * delta) * (1 + delta + i * delta))) / delta
+        ),
         "pQdisc0": lambda delta: (delta + np.log(1 / (1 + delta))) / delta,
         "subplot": 1,
         "distname": "Gamma(1.0)",
@@ -93,10 +78,8 @@ other = {
             "args": {"a": 1.0, "scale": "S_0", "loc": "S_m"},
         },
         "pQdisc": lambda delta, i: (
-            2 * np.log(1 + i * delta)
-            - np.log((1 + (-1 + i) * delta) * (1 + delta + i * delta))
-        )
-        / delta,
+            (2 * np.log(1 + i * delta) - np.log((1 + (-1 + i) * delta) * (1 + delta + i * delta))) / delta
+        ),
         "pQdisc0": lambda delta: (delta + np.log(1 / (1 + delta))) / delta,
         "subplot": 1,
         "distname": "Gamma(1.0)",
@@ -104,23 +87,20 @@ other = {
     "Biased old (Beta)": {
         "spec": {
             "func": "beta",
-            "args": {
-                "a": 2.0 - 0.000000001,
-                "b": 1.0 - 0.000000001,
-                "scale": "S_0",
-                "loc": "S_m",
-            },
+            "args": {"a": 2.0 - 0.000000001, "b": 1.0 - 0.000000001, "scale": "S_0", "loc": "S_m"},
         },
         "pQdisc": lambda delta, i: (
-            2
-            * 1
-            / np.cosh(delta - i * delta)
-            * 1
-            / np.cosh(delta + i * delta)
-            * np.sinh(delta) ** 2
-            * np.tanh(i * delta)
-        )
-        / delta,
+            (
+                2
+                * 1
+                / np.cosh(delta - i * delta)
+                * 1
+                / np.cosh(delta + i * delta)
+                * np.sinh(delta) ** 2
+                * np.tanh(i * delta)
+            )
+            / delta
+        ),
         "pQdisc0": lambda delta: 1 - np.tanh(delta) / delta,
         "subplot": 2,
         "distname": "Beta(2,1)",
@@ -128,15 +108,9 @@ other = {
     "Biased young (Beta)": {
         "spec": {
             "func": "beta",
-            "args": {
-                "a": 1.0 - 0.000000001,
-                "b": 2.0 - 0.000000001,
-                "scale": "S_0",
-                "loc": "S_m",
-            },
+            "args": {"a": 1.0 - 0.000000001, "b": 2.0 - 0.000000001, "scale": "S_0", "loc": "S_m"},
         },
-        "pQdisc": lambda delta, i: (2 * delta)
-        / ((1 + (-1 + i) * delta) * (1 + i * delta) * (1 + delta + i * delta)),
+        "pQdisc": lambda delta, i: (2 * delta) / ((1 + (-1 + i) * delta) * (1 + i * delta) * (1 + delta + i * delta)),
         "pQdisc0": lambda delta: delta / (1 + delta),
         "subplot": 3,
         "distname": "Beta(1,2)",
@@ -146,10 +120,7 @@ other = {
             "func": "beta",
             "args": {"a": 1.0 / 2, "b": 1.0, "scale": "S_0", "loc": "S_m"},
         },
-        "pQdisc": lambda delta, i: (
-            M(delta, -1 + i) - 2 * M(delta, i) + M(delta, 1 + i)
-        )
-        / delta,
+        "pQdisc": lambda delta, i: (M(delta, -1 + i) - 2 * M(delta, i) + M(delta, 1 + i)) / delta,
         "pQdisc0": lambda delta: (-1 + delta + M(delta, 1)) / delta,
         "subplot": 4,
         "distname": "Beta(1/2,1)",
@@ -167,23 +138,20 @@ other = {
     "Biased old (Kumaraswamy)": {
         "spec": {
             "func": "kumaraswamy",
-            "args": {
-                "a": 2.0 - 0.000000001,
-                "b": 1.0 - 0.000000001,
-                "scale": "S_0",
-                "loc": "S_m",
-            },
+            "args": {"a": 2.0 - 0.000000001, "b": 1.0 - 0.000000001, "scale": "S_0", "loc": "S_m"},
         },
         "pQdisc": lambda delta, i: (
-            2
-            * 1
-            / np.cosh(delta - i * delta)
-            * 1
-            / np.cosh(delta + i * delta)
-            * np.sinh(delta) ** 2
-            * np.tanh(i * delta)
-        )
-        / delta,
+            (
+                2
+                * 1
+                / np.cosh(delta - i * delta)
+                * 1
+                / np.cosh(delta + i * delta)
+                * np.sinh(delta) ** 2
+                * np.tanh(i * delta)
+            )
+            / delta
+        ),
         "pQdisc0": lambda delta: 1 - np.tanh(delta) / delta,
         "subplot": 2,
         "distname": "Kumaraswamy(2,1)",
@@ -191,15 +159,9 @@ other = {
     "Biased young (Kumaraswamy)": {
         "spec": {
             "func": "kumaraswamy",
-            "args": {
-                "a": 1.0 - 0.000000001,
-                "b": 2.0 - 0.000000001,
-                "scale": "S_0",
-                "loc": "S_m",
-            },
+            "args": {"a": 1.0 - 0.000000001, "b": 2.0 - 0.000000001, "scale": "S_0", "loc": "S_m"},
         },
-        "pQdisc": lambda delta, i: (2 * delta)
-        / ((1 + (-1 + i) * delta) * (1 + i * delta) * (1 + delta + i * delta)),
+        "pQdisc": lambda delta, i: (2 * delta) / ((1 + (-1 + i) * delta) * (1 + i * delta) * (1 + delta + i * delta)),
         "pQdisc0": lambda delta: delta / (1 + delta),
         "subplot": 3,
         "distname": "Kumaraswamy(1,2)",
@@ -209,10 +171,7 @@ other = {
             "func": "kumaraswamy",
             "args": {"a": 1.0 / 2, "b": 1.0, "scale": "S_0", "loc": "S_m"},
         },
-        "pQdisc": lambda delta, i: (
-            M(delta, -1 + i) - 2 * M(delta, i) + M(delta, 1 + i)
-        )
-        / delta,
+        "pQdisc": lambda delta, i: (M(delta, -1 + i) - 2 * M(delta, i) + M(delta, 1 + i)) / delta,
         "pQdisc0": lambda delta: (-1 + delta + M(delta, 1)) / delta,
         "subplot": 4,
         "distname": "Kumaraswamy(1/2,1)",
@@ -277,7 +236,7 @@ def test_steady(makefigure=False):
         pQdisc[1:] = bm["pQdisc"](delta, i[1:]) / dt
         im = int(Tm / dt)
         data_df[f"{name} benchmark C"] = C_old
-        data_df[f"{name} benchmark C"][im:] = np.convolve(C_J, pQdisc, mode="full")[
+        data_df.loc[data_df.index[im:], f"{name} benchmark C"] = np.convolve(C_J, pQdisc, mode="full")[
             : timeseries_length - im
         ] * dt + C_old * (1 - np.cumsum(pQdisc)[: timeseries_length - im] * dt)
         data_df[f"{name} benchmark t"] = data_df["t"]
@@ -312,7 +271,7 @@ def test_steady(makefigure=False):
             data_df[f"{name} benchmark C"].values - data_df[f"C --> {name}"].values
         )  # /data_df[f'{name} benchmark C'].values
         # logging.info(f'{name} error01 = {err01.mean()}')
-        logging.info(f"{tic} : {toc-tic} {name} time 01")
+        logging.info(f"{tic} : {toc - tic} {name} time 01")
 
         model = Model(
             data_df,
@@ -374,14 +333,9 @@ def test_steady(makefigure=False):
                 SASpdf = np.zeros_like(ST)
                 SASpdf[3:1003] = 1 / S_0
             else:
-                SASpdf = (
-                    model.sas_specs[name]
-                    .components[f"{name}_SAS"]
-                    .sas_fun[0]
-                    .func.pdf(ST)
-                )
-            SASpdf[2] = np.nan
-            SASpdf[-11] = np.nan
+                SASpdf = model.sas_specs[name].components[f"{name}_SAS"].sas_fun[0].func.pdf(ST)
+            SASpdf[2] = np.NaN
+            SASpdf[-11] = np.NaN
             ax0.plot(ST, SASpdf, alpha=0.6, lw=2, ls="-", label=bm["distname"])
             ax0.legend(frameon=False)
             if bm["subplot"] not in ax1_dict.keys():
@@ -450,9 +404,7 @@ def test_steady(makefigure=False):
                 )
             else:
                 ax2 = ax2_dict[bm["subplot"]]
-            ax2.plot(
-                data_df["t"], err01, alpha=0.6, lw=2, label=f" RMSE = {RMS(err01):.2e}"
-            )
+            ax2.plot(data_df["t"], err01, alpha=0.6, lw=2, label=f" RMSE = {RMS(err01):.2e}")
             ax2.legend(frameon=False, loc="upper left")
             if bm["subplot"] not in ax3_dict.keys():
                 ax3 = plt.subplot2grid((nrow, ncol), (3, bm["subplot"]))
@@ -480,9 +432,7 @@ def test_steady(makefigure=False):
                 )
             else:
                 ax3 = ax3_dict[bm["subplot"]]
-            ax3.plot(
-                data_df["t"], err10, alpha=0.6, lw=2, label=f" RMSE = {RMS(err10):.2e}"
-            )
+            ax3.plot(data_df["t"], err10, alpha=0.6, lw=2, label=f" RMSE = {RMS(err10):.2e}")
             ax3.legend(frameon=False, loc="upper left")
             figcount += 1
     if makefigure:
@@ -525,9 +475,7 @@ def analytical_set(df, S_init=1000.0, C_old=50.0, dt=1):
             # now the maximum age in the system is t
             pq = np.zeros(t + 2)  # store cq that goes away
             # when T = 0
-            pq[0] = (np.exp(-delta[t] * phi[t]) + delta[t] - 1) / delta[
-                t
-            ]  # p cannot be smaller than 0
+            pq[0] = (np.exp(-delta[t] * phi[t]) + delta[t] - 1) / delta[t]  # p cannot be smaller than 0
             if np.isnan(pq[0]):
                 pq[0] = 0.0
             # get C_Q at T == 0
@@ -554,7 +502,8 @@ def analytical_set(df, S_init=1000.0, C_old=50.0, dt=1):
 
 
 def test_unsteady_uniform(makefigure=False, tmax=500):
-    data_df = pd.read_csv('./test/unsteady_data.csv')
+    # %%
+    data_df = pd.read_csv(os.path.join(os.path.dirname(__file__), "unsteady_data.csv"))
     data_df = data_df[:tmax]
     data_df["Q"] = data_df["Q"] + data_df["ET"]
     data_df["ET"] = 0
@@ -562,35 +511,24 @@ def test_unsteady_uniform(makefigure=False, tmax=500):
     Storage_init = 1000.0
     C_old = 50.0
     dt = 1
-    data_df["unsteady uniform benchark C"] = analytical_set(
-        data_df, S_init=Storage_init, C_old=C_old, dt=dt
-    )
+    data_df["unsteady uniform benchark C"] = analytical_set(data_df, S_init=Storage_init, C_old=C_old, dt=dt)
 
     data_df["S0"] = (
         Storage_init + (data_df["J"] - data_df["Q"] - data_df["ET"]).cumsum() * dt
     )  # This should be the total storage volume, solve the mass balance equation
     # average stoage over the timestep
-    data_df["S0"][1:] = data_df["S0"].rolling(2).mean()[1:]
+    data_df.loc[data_df.index[1:], "S0"] = data_df["S0"].rolling(2).mean()[1:]
     data_df["Smin"] = 0.0
-    sas_spec = {
-        "Q": {
-            "Q SAS": {
-                "func": "kumaraswamy",
-                "args": {"a": 1.0, "b": 1.0, "scale": "S0", "loc": "Smin"},
-            }
-        }
-    }
+    sas_spec = {"Q": {"Q SAS": {"func": "kumaraswamy", "args": {"a": 1.0, "b": 1.0, "scale": "S0", "loc": "Smin"}}}}
     solute_parameter = {"C in": {"C_old": C_old}}
     option = {"dt": dt, "influx": "J", "n_substeps": 1, "verbose": True}
-    model = Model(
-        data_df, sas_specs=sas_spec, solute_parameters=solute_parameter, **option
-    )
+    model = Model(data_df, sas_specs=sas_spec, solute_parameters=solute_parameter, **option)
     model.run()
     data_df = model.data_df
     # Throw out the spinup
     # data_df = data_df[-2923:]
 
-    err = data_df[f"C in --> Q"].values - data_df[f"unsteady uniform benchark C"].values
+    err = data_df["C in --> Q"].values - data_df["unsteady uniform benchark C"].values
     RMSE = np.sqrt(np.mean(err**2))
     logging.info(f"Unsteady uniform error = {RMSE}")
     assert RMSE < 1e-2
@@ -598,11 +536,9 @@ def test_unsteady_uniform(makefigure=False, tmax=500):
     if makefigure:
         fig = plt.figure()
         ax = plt.subplot()
-        ax.plot(data_df[f"C in --> Q"], alpha=0.3, lw=2, label="mesas")
-        ax.plot(
-            data_df[f"unsteady uniform benchark C"], alpha=0.3, lw=2, label="benchmark"
-        )
-        ax.plot(data_df[f"C_Q TranSAS"], "r--", alpha=0.3, lw=2, label="transas")
+        ax.plot(data_df["C in --> Q"], alpha=0.3, lw=2, label="mesas")
+        ax.plot(data_df["unsteady uniform benchark C"], alpha=0.3, lw=2, label="benchmark")
+        ax.plot(data_df["C_Q TranSAS"], "r--", alpha=0.3, lw=2, label="transas")
         plt.legend()
         ax.set_ylabel("Tracer conc.")
         ax.set_xlabel("Time")
@@ -649,9 +585,9 @@ def test_part_multiple(makefigure=False):
         delta = dt * Q_0 / (S_0)
         pQdisc[0] = bm["pQdisc0"](delta) / dt
         pQdisc[1:] = bm["pQdisc"](delta, j[1:]) / dt
-        data_df[f"{name} benchmark C"] = np.convolve(C_J, pQdisc, mode="full")[
-            :timeseries_length
-        ] * dt + C_old * (1 - np.cumsum(pQdisc)[:timeseries_length] * dt)
+        data_df[f"{name} benchmark C"] = np.convolve(C_J, pQdisc, mode="full")[:timeseries_length] * dt + C_old * (
+            1 - np.cumsum(pQdisc)[:timeseries_length] * dt
+        )
         data_df[f"{name} benchmark t"] = data_df["t"]
 
         solute_parameters = {
@@ -661,12 +597,7 @@ def test_part_multiple(makefigure=False):
         sas_specs = {
             "Q1": {"Q1_SAS": {"ST": [0, S_0 / 3, S_0 * 2 / 3, S_0]}},
             "Q2": {"Q2_SAS": {"ST": [0, S_0 / 3, S_0 * 2 / 3, S_0]}},
-            "Q3": {
-                "Q3_SAS": {
-                    "ST": [0, S_0 / 2, S_0 * 3 / 4, S_0],
-                    "P": [0, 1 / 2.0, 3 / 4.0, 1],
-                }
-            },
+            "Q3": {"Q3_SAS": {"ST": [0, S_0 / 2, S_0 * 3 / 4, S_0], "P": [0, 1 / 2.0, 3 / 4.0, 1]}},
         }
 
         model = Model(
@@ -683,29 +614,19 @@ def test_part_multiple(makefigure=False):
         )
         model.run()
         data_df = model.data_df
-        data_df[f"C --> {name}"] = (
-            f1 * data_df[f"C --> Q1"]
-            + f2 * data_df[f"C --> Q2"]
-            + f3 * data_df[f"C --> Q3"]
-        )
-        err = (
-            data_df[f"{name} benchmark C"].values - data_df[f"C --> {name}"].values
-        ) / data_df[f"{name} benchmark C"].values
+        data_df[f"C --> {name}"] = f1 * data_df["C --> Q1"] + f2 * data_df["C --> Q2"] + f3 * data_df["C --> Q3"]
+        err = (data_df[f"{name} benchmark C"].values - data_df[f"C --> {name}"].values) / data_df[
+            f"{name} benchmark C"
+        ].values
         logging.info(f"Part/multiple error = {err.mean()}")
         assert err.mean() < 1e-2
         if makefigure:
             ax = plt.subplot()
             ax.plot(data_df["t"], data_df[f"C --> {name}"], alpha=0.3, lw=2)
-            ax.plot(data_df["t"], data_df[f"C --> Q1"], "c", alpha=0.3, lw=2)
-            ax.plot(data_df["t"], data_df[f"C --> Q2"], "m", alpha=0.3, lw=2)
-            ax.plot(data_df["t"], data_df[f"C --> Q3"], "k", alpha=0.3, lw=2)
-            ax.plot(
-                data_df[f"{name} benchmark t"],
-                data_df[f"{name} benchmark C"],
-                "k--",
-                alpha=0.3,
-                lw=2,
-            )
+            ax.plot(data_df["t"], data_df["C --> Q1"], "c", alpha=0.3, lw=2)
+            ax.plot(data_df["t"], data_df["C --> Q2"], "m", alpha=0.3, lw=2)
+            ax.plot(data_df["t"], data_df["C --> Q3"], "k", alpha=0.3, lw=2)
+            ax.plot(data_df[f"{name} benchmark t"], data_df[f"{name} benchmark C"], "k--", alpha=0.3, lw=2)
             ax.set_title(name)
             ax.legend()
             # ax.set_ylim((500, 2500))
@@ -758,12 +679,12 @@ def test_reaction(makefigure=False):
         pkdisc = np.zeros_like(j, dtype=float)
         pkdisc[0] = bm["pQdisc0"](kappa) / dt
         pkdisc[1:] = bm["pQdisc"](kappa, j[1:]) / dt
-        data_df[f"Reaction benchmark R"] = np.convolve(
-            (C_J / k1 + C_eq / (Q_0 / S_0)), pQdisc * pkdisc, mode="full"
-        )[:timeseries_length] * dt + C_old * (
-            1 - np.cumsum(pkdisc)[:timeseries_length] * dt
-        ) * (1 - np.cumsum(pQdisc)[:timeseries_length] * dt)
-        data_df[f"Reaction benchmark t"] = data_df["t"]
+        data_df["Reaction benchmark R"] = np.convolve((C_J / k1 + C_eq / (Q_0 / S_0)), pQdisc * pkdisc, mode="full")[
+            :timeseries_length
+        ] * dt + C_old * (1 - np.cumsum(pkdisc)[:timeseries_length] * dt) * (
+            1 - np.cumsum(pQdisc)[:timeseries_length] * dt
+        )
+        data_df["Reaction benchmark t"] = data_df["t"]
 
         solute_parameters = {"R": {"C_old": C_old, "k1": k1, "C_eq": C_eq}}
 
@@ -783,24 +704,17 @@ def test_reaction(makefigure=False):
         )
         model.run()
         data_df = model.data_df
-        err = (
-            data_df[f"Reaction benchmark R"].values - data_df[f"R --> Q1"].values
-        ) / data_df[f"Reaction benchmark R"].values
+        err = (data_df["Reaction benchmark R"].values - data_df["R --> Q1"].values) / data_df[
+            "Reaction benchmark R"
+        ].values
         logging.info(f"Reaction error = {err.mean()}")
         assert err.mean() < 1e-2
         if makefigure:
             ax = plt.subplot()
+            ax.plot(data_df["t"], data_df["R --> Q1"], "r", alpha=0.3, lw=2, label="mesas.py")
             ax.plot(
-                data_df["t"],
-                data_df[f"R --> Q1"],
-                "r",
-                alpha=0.3,
-                lw=2,
-                label="mesas.py",
-            )
-            ax.plot(
-                data_df[f"Reaction benchmark t"],
-                data_df[f"Reaction benchmark R"],
+                data_df["Reaction benchmark t"],
+                data_df["Reaction benchmark R"],
                 "r--",
                 alpha=0.3,
                 lw=2,
@@ -811,7 +725,7 @@ def test_reaction(makefigure=False):
             ax.set_ylim((0, 1100))
             ax.set_ylabel("Tracer conc.")
             ax.set_xlabel("Time")
-            ax.set_title(data_df[f"R --> Q1"].values[-1])
+            ax.set_title(data_df["R --> Q1"].values[-1])
     if makefigure:
         fig.tight_layout()
         fig.savefig("test_reaction.pdf")

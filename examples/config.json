@@ -1,0 +1,20 @@
+    {
+
+    "sas_specs": {
+        "Q out [vol/time]": {
+            "my first SAS func!": {
+                "ST": [0, "Storage_vol"]
+                }
+            }
+        },
+
+    "solute_parameters": {
+        "C [conc]": {}
+        },
+        
+    "options":{
+        "dt": 0.01,
+        "influx": "J in [vol/time]"
+        }   
+
+    }

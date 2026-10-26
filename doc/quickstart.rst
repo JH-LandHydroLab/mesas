@@ -3,145 +3,160 @@
 Quickstart
 ==========
 
-To run a mesas.py model, you must supply four things.
+This tutorial walks through creating, running, and visualising a simple SAS
+model from scratch. By the end you will have a working model of tracer
+transport through a well-mixed reservoir.
 
-The first is a timeseries of the system inputs and outputs, and of any time-varying parameters, stored in either 
+1. Create input data
+====================
 
-   - a `Pandas <https://pandas.pydata.org/>`_ dataframe
-   - a ``.csv`` file
-  
-The other three are sets of parameters and options to configure the model, which can be supplied either as text files (in the human-readable JSON format) or as python dictionaries (``dict`` objects). The three sets are
+A mesas model needs a pandas DataFrame containing at least:
 
- - A specification of the SAS function
- - A specification of any solute solute_parameters
- - Any optional parameters and settings
+- an **influx** column (default name ``"J"``),
+- one or more **outflux** columns, and
+- optionally, one or more **solute concentration** columns.
 
-If you are unfamiliar with ``pandas`` and python ``dict`` objects (or even if you are) it is probably easiest to start by using ``.csv`` and ``.json`` input files.
+.. code-block:: python
 
-Input timeseries
-================
-
-The ``.csv`` of timeseries data should contain (at minimum) the timeseries of fluid input, output, and any tracer input timeseries. In addition, many SAS function and solute parameters can be time-varying (rather than fixed values). When they vary in time, they must be provided as a column in the dataframe.
-
-The code below creates a ``.csv`` file with some artificial data. We will construct it to be 100 timesteps of steady flow at rate ``Q_steady`` through storage volume ``Storage_vol``. The inputs will be labeled with tracer at concentration ``C_tracer_input`` for 10% of the total duration near the start of the timeseries. Let's start by creating some variables to hold this information::
-
-    timeseries_duration = 1.
-    timeseries_length = 100
-    dt = timeseries_duration/timeseries_length
-
-    pulse_start = 0.05
-    pulse_end = 0.15
-
-    C_tracer_input = 0.5
-    Q_steady = 1.
-    Storage_vol = 0.1
-
-Now we will create the dataframe in pandas::
-
-    import pandas as pd
     import numpy as np
-    data_df = pd.DataFrame(index=np.arange(timeseries_length) * dt)
-    data_df['Q out [vol/time]'] = Q_steady
-    data_df['J in [vol/time]'] = Q_steady
-    data_df['Storage_vol'] = Storage_vol
-    data_df['C [conc]'] = 0
-    data_df.loc[pulse_start:pulse_end, 'C [conc]'] = C_tracer_input
-    data_df.to_csv('data.csv')
+    import pandas as pd
 
-This creates a file ``data.csv`` that contains the input timeseries.
+    N = 200          # timesteps
+    dt = 0.01        # timestep size
+    Q_0 = 1.0        # steady flow rate
+    S_0 = 5.0        # storage volume
 
-Configuration information
-=========================
+    data_df = pd.DataFrame(index=range(N))
+    data_df["J"] = Q_0                         # influx
+    data_df["Q"] = Q_0                         # outflux (steady state)
+    data_df["S_0"] = S_0                       # storage (used in SAS spec)
+    data_df["C"] = 0.0                         # tracer concentration
+    data_df.loc[10:20, "C"] = 10.0             # pulse of tracer
 
-Next, let's give the specifications of the SAS function, solute parameters, and options in a file ``config.json``. The part specifying the SAS function looks like this::
+2. Define the SAS function
+==========================
 
-    "sas_specs": {
-        "Q out [vol/time]": {
-            "my first SAS func!": {
-                "ST": [0, "Storage_vol"]
-                }
+The SAS function determines *how water of different ages is selected for
+discharge*. The simplest case is a **uniform distribution** over the total
+storage — equivalent to a well-mixed reservoir.
+
+.. code-block:: python
+
+    sas_specs = {
+        "Q": {                           # flux name (must match a column)
+            "Q_SAS": {                   # component name (arbitrary label)
+                "ST": [0, "S_0"]         # piecewise-linear CDF from 0 to S_0
             }
         }
+    }
 
-This specification says the following:
+The ``"ST"`` key gives the breakpoints of a piecewise-linear CDF. Here we
+use ``"S_0"`` (a string) to reference the time-varying column in the
+DataFrame — the SAS function endpoint tracks the storage volume at each
+timestep.
 
-- There is only one flux out, and it can be found under the column ``"Q out [vol/time]"`` in the dataframe.
-- There is only one SAS function associated with this flux, and it is called ``"my first SAS func!"``.
-- The SAS function is specified as a piecewise linear function with one linear segment from :math:`P=0` at :math:`ST=0` to :math:`P=1` at :math:`ST =` ``Storage_vol``.
+3. Define solute parameters
+===========================
 
+Tell the model which DataFrame column holds the input concentration:
 
-The only solute information we need to give is the name of the column containing the input timeseries. The part of the ``config.json`` file providing this information looks like this::
+.. code-block:: python
 
-    "solute_parameters": {
-        "C [conc]": {}
+    solute_parameters = {
+        "C": {                           # must match a column name
+            "C_old": 0.0                 # concentration of pre-initial water
         }
+    }
 
-The dictionary associated with our solute is empty ``{}``, so the default parameters will be used.
+An empty dict ``{}`` uses all defaults (``C_old=0``). See
+:ref:`solspec` for the full list of solute parameters.
 
-The part providing additional options looks like this::
+4. Create and run the model
+===========================
 
-    "options":{
-        "dt": 0.01,
-        "influx": "J in [vol/time]"
-        }
+.. code-block:: python
 
-This specifies
+    from mesas.sas.model import Model
 
-- The timestep of the model ``dt`` (which depends on the units of the inflow and outflow)
-- The name of the column in the dataframe that contains the inflow rate, given by the keyword argument ``influx``
+    model = Model(
+        data_df,
+        sas_specs=sas_specs,
+        solute_parameters=solute_parameters,
+        dt=dt,
+        verbose=False,
+    )
+    model.run()
 
-The complete ``config.json`` file should look like this:
+5. View the results
+===================
+
+Predicted outflux concentrations appear as new columns in
+``model.data_df`` with the naming pattern
+``"<solute> --> <flux>"``:
+
+.. code-block:: python
+
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    ax.plot(model.data_df.index * dt, model.data_df["C"], label="Input C")
+    ax.plot(model.data_df.index * dt, model.data_df["C --> Q"], label="Output C")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Concentration")
+    ax.legend()
+    plt.show()
+
+You should see the tracer pulse smeared out by the well-mixed reservoir.
+
+6. Access internal state variables
+==================================
+
+After running, the model stores age-ranked arrays accessible via
+getter methods or the :class:`~mesas.sas.model.ModelResult` object:
+
+.. code-block:: python
+
+    sT = model.get_sT()             # age-ranked storage density
+    pQ = model.get_pQ("Q")          # age-ranked transit time distribution
+    wb = model.get_water_balance()   # should be near machine precision
+
+    print(f"Water balance max residual: {abs(wb).max():.2e}")
+
+Using a JSON config file
+=========================
+
+Instead of passing dicts directly, you can store the configuration in a
+JSON file:
 
 .. code-block:: json
 
     {
-
-    "sas_specs": {
-        "Q out [vol/time]": {
-            "my first SAS func!": {
-                "ST": [0, "Storage_vol"]
+        "sas_specs": {
+            "Q": {
+                "Q_SAS": {
+                    "ST": [0, "S_0"]
                 }
             }
         },
-
-    "solute_parameters": {
-        "C [conc]": {}
+        "solute_parameters": {
+            "C": {"C_old": 0.0}
         },
-        
-    "options":{
-        "dt": 0.01,
-        "influx": "J in [vol/time]"
-        }   
-
+        "options": {
+            "dt": 0.01,
+            "verbose": false
+        }
     }
 
-Running mesas.py
-================
+Then create the model with:
 
-Now we are ready to import mesas.py, create the model, and run it::
+.. code-block:: python
 
-    from mesas.sas.model import Model
-    model = Model(data_df='data.csv', config='config.json')
-    model.run()
-    model.data_df.to_csv('data_with_results.csv')
+    model = Model(data_df, config="config.json")
 
-Assuming the model runs without incident the predicted discharge concentration has appeared as a new column in the file ``data_with_results.csv``. The columns generated by the model will have the form ``'<solute column name> --> <flux column name>'``.
+Next steps
+==========
 
-Plot the results
-================
-
-The results can be accessed within python as the ``pandas`` dataframe ``model.data_df``
-
-We can use matplotlib to plot individual columns of the dataframe like this::
-
-    import matplotlib.pyplot as plt
-    plt.plot(model.data_df.index, model.ata_df['C [conc]'])
-    plt.plot(model.data_df.index, model.data_df['C [conc] --> Q out [vol/time]'])
-
-Which should give this:
-
-.. image:: fig/QS.png
-  :width: 700
-  :alt: What you should see if you followed the instructions flawlessly
-
-
+- :ref:`sasspec` — learn about gamma, beta, and piecewise SAS functions
+- :ref:`solspec` — configure solute reactions and evapoconcentration
+- :ref:`options` — adjust numerical scheme, substeps, and recording
+- :ref:`results` — extract age-ranked storage, transit times, and mass

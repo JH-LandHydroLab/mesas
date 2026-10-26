@@ -40,14 +40,14 @@ For more information click the links above. Here is an example of the contents o
                 "ST": [0, 100]
                 }
             }
-        }
-    
+        },
+
     "solute_parameters":{
         "solute A":{
             "C_old": 0.5
             }
-        }
-    
+        },
+
     "options":{
         "dt": 3600
         }

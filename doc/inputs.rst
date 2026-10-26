@@ -11,7 +11,7 @@ The dataframe or ``.csv`` should be constructed before creating the model object
 .. code-block:: python
 
     import pandas as pd
-    from mesas.sas import Model
+    from mesas import Model
 
     # read input timeseries from a .csv file into a dataframe
     my_dataframe = pd.read_csv('my_input_timeseries.csv', ...)
@@ -23,7 +23,7 @@ and
 
 .. code-block:: python
 
-    from mesas.sas import Model
+    from mesas import Model
 
     # create model
     my_model = Model(data_df="path/to/my_data.csv", ...)

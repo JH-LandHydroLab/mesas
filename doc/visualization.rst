@@ -1,7 +1,0 @@
-
-===================
-Visualizing outputs
-===================
-
-Under construction...
-

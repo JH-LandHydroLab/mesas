@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file, and cite the accompanying paper (see preferred-citation)."
+type: software
+title: "mesas.py: Multiscale Estimation of StorAge Selection"
+authors:
+  - family-names: "Harman"
+    given-names: "Ciaran J."
+    orcid: "https://orcid.org/0000-0002-3185-002X"
+    affiliation: "Johns Hopkins University"
+  - family-names: "Xu Fei"
+    given-names: "Esther"
+    affiliation: "Johns Hopkins University"
+repository-code: "https://github.com/JH-LandHydroLab/mesas"
+url: "https://mesas.readthedocs.io/"
+license: MIT
+doi: "10.5281/zenodo.7144730"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.7144730"
+    description: "Concept DOI for all versions (resolves to the latest archived release)"
+preferred-citation:
+  type: article
+  title: "mesas.py v1.0: a flexible Python package for modeling solute transport and transit times using StorAge Selection functions"
+  authors:
+    - family-names: "Harman"
+      given-names: "Ciaran J."
+      orcid: "https://orcid.org/0000-0002-3185-002X"
+      affiliation: "Johns Hopkins University"
+    - family-names: "Xu Fei"
+      given-names: "Esther"
+      affiliation: "Johns Hopkins University"
+  journal: "Geoscientific Model Development"
+  volume: 17
+  start: 477
+  end: 495
+  year: 2024
+  doi: "10.5194/gmd-17-477-2024"

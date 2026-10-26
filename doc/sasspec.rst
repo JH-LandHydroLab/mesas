@@ -80,8 +80,10 @@ which has only one shape parameter, :math:`\alpha`, and again :math:`N(\alpha,\b
 
 where 
 
- - :math:`S_\mathrm{loc}(t)` or ``"loc"`` : the location parameter, which shifts the distribution to the right for values >0 and to the left for values <0 (default is 0)
- - :math:`S_\mathrm{scale}(t)` or ``"scale"`` : the scale parameter (default is 1)
+ - :math:`S_\mathrm{loc}(t)` or ``"loc"`` : the location parameter, which shifts the distribution to the right for values >0 and to the left for values <0
+ - :math:`S_\mathrm{scale}(t)` or ``"scale"`` : the scale parameter
+
+Note that both ``"loc"`` and ``"scale"`` must be given explicitly in the ``"args"`` dict when using the built-in gamma and beta distributions -- omitting either will result in an error.
 
 The desired distribution is specified using the key ``"func"``, and the associated parameters using the keyword ``"args"``, as illustrated in the example below. All parameters can be made time-varying by setting them to a string corresponding to a column in ``data_df``.
 
@@ -94,14 +96,14 @@ Here is an examples of a SAS specification for two fluxes, ``"Discharge"`` and `
 .. code-block:: json
 
     {
-    "sas_specss":{
+    "sas_specs":{
         "Discharge": {
             "Discharge SAS fun": {
                 "func": "gamma", 
                 "args": {
                     "a": 0.62,
                     "scale": "S0",
-                    "loc": 0.
+                    "loc": 0.0
                     }
                 }
             },
@@ -116,8 +118,8 @@ Here is an examples of a SAS specification for two fluxes, ``"Discharge"`` and `
                     }
                 }
             }
-        }
-    
+        },
+
     "...": "..."
 
     }
@@ -168,15 +170,15 @@ Here is an examples of a SAS specification for two fluxes, ``"Discharge"`` and `
 .. code-block:: json
 
     {
-    "sas_specss": {
+    "sas_specs": {
         "Discharge": {
             "Discharge SAS fun": {
                 "func": "gamma",
                 "use": "scipy.stats",
                 "args": {
                     "a": 0.62,
-                    "scale": 5724.,
-                    "loc": 0.
+                    "scale": 5724.0,
+                    "loc": 0.0
                     },
                 "nsegment": 50
                 }
@@ -194,8 +196,8 @@ Here is an examples of a SAS specification for two fluxes, ``"Discharge"`` and `
                 "nsegment": 50
                 }
             }
-        }
-    
+        },
+
     "...": "..."
 
     }
@@ -209,7 +211,7 @@ A SAS function can be specified by supplying the breakpoints of a piecewise line
 
 At minimum, the values of :math:`S_T` (corresponding to breakpoints in the piecewise linear approximation) must be supplied. These are given by the ``"ST"`` key, which must be associated with a list of strictly-increasing non-negative values. Non-increasing or negative values in this list will result in an error. The first value does not need to be zero. The values can be given as a fixed number, or as a string referring to a column in ``data_df``.
 
-Values of the associated cumulative probability can optionally be supplied with the key ``"P"``, which must be associated with a list of strictly-increasing numbers between 0 and 1 of the same length as the list in ``"ST"``. The first entry must be ```0`` and the last must be ``1``. Again, the values can be given as a fixed number, or as a string referring to a column in ``data_df``. If ``"P"`` is not supplied it will be assumed that each increment of ``"ST"`` represents an equal increment of probability.
+Values of the associated cumulative probability can optionally be supplied with the key ``"P"``, which must be associated with a list of non-decreasing numbers between 0 and 1 of the same length as the list in ``"ST"``. The first entry must be ```0`` and the last must be ``1``. Again, the values can be given as a fixed number, or as a string referring to a column in ``data_df``. If ``"P"`` is not supplied it will be assumed that each increment of ``"ST"`` represents an equal increment of probability.
 
 +++++++
 Example
@@ -220,11 +222,11 @@ Here is an example, where storage is given in units of millimeters:
 .. code-block:: json
 
     {
-    "sas_specss": {
+    "sas_specs": {
         "Discharge": {
             "Discharge SAS fun": {
-                "ST": [0, 553, "Total Storage"]
-                "P" : [ 0, 0.8, 1.]
+                "ST": [0, 553, "Total Storage"],
+                "P" : [ 0, 0.8, 1.0]
                 }
             },
         "ET": {
@@ -232,8 +234,8 @@ Here is an example, where storage is given in units of millimeters:
                 "ST": [50, 250, 800]
                 }
             }
-        }
-    
+        },
+
     "...": "..."
 
     }

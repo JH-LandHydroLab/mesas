@@ -65,7 +65,7 @@ The parameter dictionary may specify any of the following default ``key:value`` 
   The keys in the ``alpha`` dict must match keys in top level keys of ``sas_specs``. Each key may be associated with a number or a string referring to a column of partitioning coefficients in ``data_df``.
   {"Q": 1., ...}   # Partitioning coefficient for flux "Q"
 
-``observations`` (dict, default = None)
+``observations`` (dict, default = ``{}``)
   This dict provides the name of columns in `data_df` that contain observations that may be used to calibrate/validate the model"s predictions of outflow concentrations. Keys are outflow fluxes named in top level keys of ``sas_specs``, e.g. ``"observations":{"Q": "obs C in Q", ...}``.
 
 --------------------
@@ -75,16 +75,16 @@ Modifying parameters
 There are two equivalent ways to modify the parameters of an existing model.
 
 Assigning a dict
-  The model property ``<my_model>.solute_parameters`` can be assigned a dict of valid key-value pairs. This will overwrite existing parameters for all the properties in the dict, but leave the remainder unchanged.
+  The model property ``<my_model>.solute_parameters`` can be assigned a dict of valid key-value pairs. Note that this rebuilds the solute parameters from scratch: only the solutes named in the new dict will be retained, and any parameters not given in the dict are reset to their default values.
 
   To remove all solute parameters (so no solute transport will be modelled) set ``<my_model>.solute_parameters=None``. Default parameters can then be set by assigning an empty dict to each solute ``<my_model>.solute_parameters={"C1":{}, ...}``
 
 Using the ``<my_model>.set_solute_parameters()`` function
-  Individual properties of a solute can be set using this convenience function. Individual parameters are set as keyword arguments, like this:
+  Individual properties of an existing solute can be updated using this convenience function, leaving its other parameters unchanged. Pass the solute name and a dict of the parameters to change, like this:
 
 .. code-block:: python
 
-    <my_model>.set_solute_parameters("C1", C_old=22.5)
+    <my_model>.set_solute_parameters("C1", {"C_old": 22.5})
 
 This would set the ``C_old`` property associated with solute ``"C1"`` to ``22.5``.
 

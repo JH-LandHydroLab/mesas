@@ -6,13 +6,23 @@ For more information see the free HydroLearn course: [Tracers and transit times 
 
 ## Installation
 
-The current version of mesas.py can be installed using Conda with::
+Install with Conda:
 
     conda install -c conda-forge mesas
 
-This will install any additional dependencies at the same time.
+or with pip:
 
-Alternatively, the code can be obtained from GitHub: https://github.com/charman2/mesas. Note that a fortran compiler is required to build from source (but is not required to install through Conda). Instructions for compilation can be found here: https://mesas.readthedocs.io/en/latest/installation.html
+    pip install mesas
+
+Either installs mesas v2 and all of its dependencies. As of v2, mesas is pure
+Python — the numerical solver is JIT-compiled with
+[Numba](https://numba.pydata.org/), so no Fortran compiler is needed.
+
+The legacy Fortran-based v1.x remains available by pinning the version, e.g.
+`conda install -c conda-forge mesas=1.20240418`. To work on the development
+version, clone this repository and `pip install -e .`
+
+Further instructions can be found here: https://mesas.readthedocs.io/en/latest/installation.html
 
 ## Documentation
 
@@ -20,6 +30,8 @@ Documentation for the code is available here: https://mesas.readthedocs.io/en/la
 
 ## Citation
 
-A paper describing the code and presenting validation results is in preparation
+If you use mesas.py in your research, please cite:
+
+Harman, C. J. and Xu Fei, E.: mesas.py v1.0: a flexible Python package for modeling solute transport and transit times using StorAge Selection functions, Geosci. Model Dev., 17, 477-495, https://doi.org/10.5194/gmd-17-477-2024, 2024.
 
 [![DOI](https://zenodo.org/badge/183813641.svg)](https://zenodo.org/badge/latestdoi/183813641)
