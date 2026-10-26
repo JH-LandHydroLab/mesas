@@ -452,8 +452,16 @@ def fit_model(model, include_C_old=True, learn_fun=None, index=None, jacobian_mo
     def f(x):
         """return residuals given parameters x"""
 
-        update_parameters(x)
-        new_model.run()
+        try:
+            update_parameters(x)
+            new_model.run()
+        except ValueError:
+            # The optimizer may probe parameter values so extreme that the
+            # exponentiated segments collapse into ties under floating-point
+            # absorption, which the model's ST validation rejects. Return
+            # large residuals to steer the optimizer away instead of
+            # crashing the fit.
+            return np.full(len(index), 1e10)
 
         # optionally do some plotting
         if learn_fun is not None:
