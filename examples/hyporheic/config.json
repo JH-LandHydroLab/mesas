@@ -1,8 +1,7 @@
 {
-    "sas_specs":{
-
-        "Q":{
-            "Q SAS function":{
+    "sas_specs": {
+        "Q": {
+            "Q SAS function": {
                 "func": "gamma",
                 "args": {
                     "loc": "S_min",
@@ -12,19 +11,16 @@
             }
         }
     },
-
-    "solute_parameters":{
-
-        "C_J":{
+    "solute_parameters": {
+        "C_J": {
             "C_old": 28.8,
-            "observations": "C_Q"
+            "observations": {
+                "Q": "C_Q"
+            }
         }
-
     },
-
-
-    "options":{
-        "verbose": true,
+    "options": {
+        "verbose": false,
         "n_substeps": 1,
         "dt": 1
     }

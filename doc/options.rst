@@ -85,8 +85,33 @@ Available options
       which timesteps to record
 
 ``jacobian`` : bool, default = False
-    Compute Jacobian arrays (``dsTdSj``, ``dmTdSj``, ``dCdSj``) for
-    sensitivity analysis and calibration.
+    Not implemented in the v2 solver: setting ``True`` raises
+    ``NotImplementedError``. Use numerical jacobians instead (e.g.
+    ``mesas.me.recursive_split.fit_model`` with
+    ``jacobian_mode="numerical"``).
+
+``record_every`` : int or None, default = None
+    Record the state at the end of every k-th timestep — a memory-saving
+    alternative to ``record_state=True``.
+
+``record_arrays`` : "all" or iterable of str, default = "all"
+    Which state arrays to record (subset of ``{"sT", "pQ", "mT", "mQ",
+    "mR", "water_balance", "solute_balance"}``). Unselected arrays are
+    never allocated.
+
+``record_dtype`` : {"float64", "float32"}, default = "float64"
+    Storage dtype for the recorded arrays; ``"float32"`` halves memory.
+    Computation is always float64.
+
+``record_to`` : str or None, default = None
+    Directory in which to store the recorded arrays as disk-backed
+    ``.npy`` memory maps instead of RAM. Reloadable later with
+    :meth:`Model.load_state`. See :ref:`results`.
+
+``validate_inputs`` : bool, default = True
+    Check input data and SAS parameters for NaN, negative fluxes, and
+    non-positive distribution parameters before running, raising a
+    descriptive error. Set ``False`` to skip.
 
 ``ST_smallest_segment`` : float, default = 0.01
     Minimum allowed piecewise segment length along the :math:`S_T` axis.

@@ -51,9 +51,9 @@ class ModelOptions:
     num_scheme : int
         Runge-Kutta scheme: 1 (Euler), 2 (RK2), or 4 (RK4). Default 4.
     debug : bool
-        Enable debug output. Default False.
+        Accepted for backward compatibility; currently unused. Default False.
     warning : bool
-        Print solver warnings. Default True.
+        Accepted for backward compatibility; currently unused. Default True.
     jacobian : bool
         Compute Jacobian arrays. Default False.
     n_substeps : int
@@ -206,13 +206,23 @@ class SoluteSpec:
         """Create from a legacy dict, filling in default alpha per flux."""
         default_alpha = {flux: 1.0 for flux in flux_names}
         alpha = d.get("alpha", default_alpha)
+        observations = d.get("observations", {})
+        if isinstance(observations, str):
+            if len(flux_names) == 1:
+                observations = {flux_names[0]: observations}
+            else:
+                raise ValueError(
+                    f"'observations' was given as a string ({observations!r}) but the model has "
+                    f"multiple fluxes {list(flux_names)}. Use a dict mapping flux name to "
+                    "observation column, e.g. {'Q': 'C_obs'}."
+                )
         return cls(
             C_old=d.get("C_old", 0.0),
             mT_init=d.get("mT_init", 0.0),
             k1=d.get("k1", 0.0),
             C_eq=d.get("C_eq", 0.0),
             alpha=alpha,
-            observations=d.get("observations", {}),
+            observations=observations,
         )
 
     def to_dict(self) -> dict:
@@ -325,7 +335,7 @@ class Model:
 
     Construct with timeseries data, SAS function specifications, and
     (optionally) solute parameters, then call :meth:`run` to execute the
-    Fortran solver.
+    numerical solver.
 
     Parameters
     ----------
@@ -586,6 +596,16 @@ class Model:
         if len(self._data_df) == 0:
             raise ValueError("data_df is empty — the model needs at least one timestep of input data")
         self._timeseries_length = len(self._data_df)
+        if getattr(self, "_sas_specs", None):
+            warnings.warn(
+                "data_df was replaced after the model was built, but SAS parameters "
+                "(ST breakpoints, gamma/beta args, component weights) were parsed from "
+                "the ORIGINAL data_df and will not reflect the new one. Fluxes and "
+                "concentrations are re-read at run(). To update SAS parameters, build "
+                "a new Model or re-assign model.sas_specs.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     @property
     def options(self) -> dict:
@@ -677,6 +697,11 @@ class Model:
 
     @components_to_learn.setter
     def components_to_learn(self, label_dict):
+        if label_dict is None:
+            # Sensible defaults so observation-based methods (get_residuals,
+            # get_obs_index) work without explicitly choosing components.
+            self._components_to_learn = None
+            self._comp2learn_fluxorder = list(self._fluxorder)
         if label_dict is not None:
             self._components_to_learn = OrderedDict(
                 (flux, [label for label in self._sas_specs[flux]._componentorder if label in label_dict[flux]])
@@ -734,6 +759,18 @@ class Model:
         invalid_parameters = [paramkey for paramkey in params.keys() if paramkey not in self._default_parameters.keys()]
         if any(invalid_parameters):
             raise KeyError("invalid parameters for {}: {}".format(sol, invalid_parameters))
+        params = dict(params)
+        obs = params.get("observations")
+        if isinstance(obs, str):
+            # Accept the shorthand string form for single-flux models
+            if self._numflux == 1:
+                params["observations"] = {self._fluxorder[0]: obs}
+            else:
+                raise ValueError(
+                    f"'observations' for solute '{sol}' was given as a string ({obs!r}) but the "
+                    f"model has multiple fluxes {list(self._fluxorder)}. Use a dict mapping "
+                    "flux name to observation column, e.g. {'Q': 'C_obs'}."
+                )
         self._solute_parameters[sol].update(params)
 
     def _create_solute_inputs(self):
@@ -763,15 +800,15 @@ class Model:
                 k1[:, isol] = _get_array(self.solute_parameters[sol]["k1"], self._timeseries_length, "k1", sol)
                 C_eq[:, isol] = _get_array(self.solute_parameters[sol]["C_eq"], self._timeseries_length, "C_eq", sol)
                 for iflux, flux in enumerate(self._fluxorder):
-                    alpha[:, iflux, isol] = _get_array(
-                        self.solute_parameters[sol]["alpha"][flux], self._timeseries_length, f"alpha[{flux}]", sol
-                    )
+                    # a flux omitted from the alpha dict gets the documented default of 1.0
+                    alpha_flux = self.solute_parameters[sol]["alpha"].get(flux, 1.0)
+                    alpha[:, iflux, isol] = _get_array(alpha_flux, self._timeseries_length, f"alpha[{flux}]", sol)
         return C_J, mT_init, C_old, alpha, k1, C_eq
 
     def _create_sas_lookup(self):
-        """Build flattened SAS lookup tables for the Fortran solver.
+        """Build flattened SAS lookup tables for the solver.
 
-        The Fortran solver expects all SAS function parameters packed into
+        The solver expects all SAS function parameters packed into
         flat arrays.  This method iterates over fluxes and their components
         to produce:
 
@@ -851,6 +888,78 @@ class Model:
             # concentrations may legitimately be negative (e.g. isotope delta values)
             _check(sol, allow_negative=True)
 
+        # Component blending weights should sum to 1 at every timestep;
+        # any shortfall is silently treated as pre-simulation (C_old) water.
+        for flux in self._fluxorder:
+            spec = self._sas_specs[flux]
+            total = np.zeros(self._timeseries_length)
+            for _label, component in spec.components.items():
+                total += np.asarray(component.weights.values, dtype=float)
+            if not np.allclose(total, 1.0, atol=1e-6):
+                warnings.warn(
+                    f"Component weights for flux '{flux}' do not sum to 1 at every timestep "
+                    f"(range {total.min():.4g} to {total.max():.4g}). The shortfall is treated "
+                    "as water older than the simulation (concentration C_old).",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+    # Argument names per component type code (see _create_sas_lookup)
+    _SAS_ARG_NAMES = {
+        1: ("loc", "scale", "a"),  # gamma
+        2: ("loc", "scale", "a", "b"),  # beta
+        3: ("loc", "scale", "a", "b"),  # kumaraswamy
+    }
+    # Of those, the ones that must be strictly positive
+    _SAS_POSITIVE_ARGS = frozenset({"scale", "a", "b"})
+
+    def _validate_sas_args(self, SAS_args, component_type, nargs_list, nargs_total):
+        """Check per-timestep SAS parameters for NaN and non-positive values.
+
+        A NaN or non-positive distribution parameter does not raise inside
+        the solver — it silently corrupts (or, for NaN, used to hang) the
+        age-ranked storage from that timestep onward. Raise a targeted
+        error instead, naming the component, parameter, and timesteps.
+        """
+        args2d = np.ascontiguousarray(SAS_args.T, dtype=np.float64).ravel()
+        args2d = args2d.reshape(int(nargs_total), self._timeseries_length)
+
+        def _bad(label, flux, name, idx, why):
+            shown = idx[:5].tolist()
+            more = f" (+{len(idx) - 5} more)" if len(idx) > 5 else ""
+            raise ValueError(
+                f"SAS parameter '{name}' of component '{label}' (flux '{flux}') {why} at "
+                f"timestep(s) {shown}{more}. If this parameter comes from a data_df column, "
+                "fix the column (fill NaNs, clip non-positive values). "
+                "Set validate_inputs=False to skip this check."
+            )
+
+        row = 0
+        ic = 0
+        for flux in self._fluxorder:
+            for label in self._sas_specs[flux]._componentorder:
+                n = int(nargs_list[ic])
+                ctype = int(component_type[ic])
+                names = self._SAS_ARG_NAMES.get(ctype)
+                for k in range(n):
+                    vals = args2d[row + k]
+                    name = names[k] if names and k < len(names) else f"ST[{k}]"
+                    if names is None and k == n - 1:
+                        # A piecewise/lookup component's final ST breakpoint is
+                        # legitimately +inf for unbounded distributions.
+                        bad_vals = np.isnan(vals) | np.isneginf(vals)
+                    else:
+                        bad_vals = ~np.isfinite(vals)
+                    if bad_vals.any():
+                        _bad(label, flux, name, np.where(bad_vals)[0], "is NaN/inf")
+                    if names and k < len(names) and names[k] in self._SAS_POSITIVE_ARGS:
+                        nonpos = vals <= 0
+                        if nonpos.any():
+                            i0 = np.where(nonpos)[0]
+                            _bad(label, flux, name, i0, f"must be > 0 but is {vals[i0[0]]:.4g}")
+                row += n
+                ic += 1
+
     def run(self) -> None:
         """Execute the SAS model with current parameters.
 
@@ -872,13 +981,15 @@ class Model:
         timeseries_length = self._timeseries_length
         numflux = self._numflux
 
-        # --- 2. Build SAS lookup tables (flattened for Fortran) ---
+        # --- 2. Build SAS lookup tables (flattened for the solver) ---
         SAS_args, P_list, weights, component_type, nC_list, nC_total, nargs_list, nargs_total = (
             self._create_sas_lookup()
         )
         SAS_args = np.ascontiguousarray(SAS_args)
         P_list = np.ascontiguousarray(P_list)
         weights = np.ascontiguousarray(weights)
+        if opts.validate_inputs:
+            self._validate_sas_args(SAS_args, component_type, nargs_list, nargs_total)
 
         # --- 3. Build solute input arrays ---
         C_J, mT_init, C_old, alpha, k1, C_eq = self._create_solute_inputs()
@@ -894,7 +1005,7 @@ class Model:
             raise NotImplementedError(
                 "options['jacobian']=True is not implemented in the Numba solver: "
                 "the returned sensitivities would be all zeros. Use numerical "
-                "jacobians instead (e.g. mesas.me.fit_model with jacobian_mode='numerical')."
+                "jacobians instead (e.g. mesas.me.recursive_split.fit_model with jacobian_mode='numerical')."
             )
         n_substeps = opts.n_substeps
         max_age = opts.max_age
@@ -1064,7 +1175,7 @@ class Model:
         raise NotImplementedError(
             "Model.get_jacobian requires the solver's Jacobian arrays, which the "
             "Numba solver does not compute. Use numerical jacobians instead "
-            "(e.g. mesas.me.fit_model with jacobian_mode='numerical')."
+            "(e.g. mesas.me.recursive_split.fit_model with jacobian_mode='numerical')."
         )
 
     def get_residuals(self):
@@ -1106,6 +1217,9 @@ class Model:
         n_given = sum(x is not None for x in (timestep, agestep, inputtime))
         if n_given > 1:
             raise ValueError("Only one of timestep, agestep, or inputtime may be given")
+        # NOTE: `timestep` indexes the RECORDED steps (columns of the result
+        # arrays). With record_state=True these coincide with model timesteps;
+        # with record_every or a record_state column they do not.
         if timestep is not None:
             return X[:, timestep]
         if agestep is not None:

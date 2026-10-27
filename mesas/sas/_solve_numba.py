@@ -36,6 +36,15 @@ except ImportError:
 # Set to False to disable JIT compilation during development/debugging
 _USE_NUMBA = True
 
+# MESAS_PARALLEL=0 (set before import) compiles the solver serially for
+# process-level parallelism. numba's on-disk cache does not key on the
+# parallel flag, and a cached caller carries its callees' machine code with
+# it, so the two modes must never share cached artifacts: serial mode
+# disables caching entirely (one fresh JIT compile per process), while the
+# default parallel mode caches as usual.
+_PARALLEL_ENABLED = os.environ.get("MESAS_PARALLEL", "1") != "0"
+_USE_CACHE = _PARALLEL_ENABLED
+
 # Names of the recorded state arrays users can select via record_arrays
 RECORDABLE_ARRAYS = frozenset({"sT", "pQ", "mT", "mQ", "mR", "water_balance", "solute_balance"})
 
@@ -43,14 +52,14 @@ RECORDABLE_ARRAYS = frozenset({"sT", "pQ", "mT", "mQ", "mR", "water_balance", "s
 def _maybe_jit(func):
     """Apply @njit if Numba is available and enabled."""
     if _USE_NUMBA:
-        return njit(cache=True)(func)
+        return njit(cache=_USE_CACHE)(func)
     return func
 
 
 def _maybe_jit_fastmath(func):
     """Apply @njit(fastmath=True) for hot numerical loops."""
     if _USE_NUMBA:
-        return njit(cache=True, fastmath=True)(func)
+        return njit(cache=_USE_CACHE, fastmath=True)(func)
     return func
 
 
@@ -62,17 +71,39 @@ def _maybe_jit_parallel(func):
     the process level (e.g. multiprocessing calibration), where oversubscribing
     cores with numba threads hurts throughput. Thread count can also be
     limited with ``NUMBA_NUM_THREADS``.
+
+    The serial variant is compiled with ``cache=False``: numba's on-disk
+    cache does not include the ``parallel`` flag in its key, so a cached
+    kernel from one mode would otherwise be silently reused by the other
+    (and a parallel kernel loaded under MESAS_PARALLEL=0 skips the
+    threading-layer warmup, which can segfault). Serial mode therefore
+    pays a fresh JIT compile per process, but always runs what it says.
     """
     if _USE_NUMBA:
-        parallel = os.environ.get("MESAS_PARALLEL", "1") != "0"
-        return njit(cache=True, fastmath=True, parallel=parallel)(func)
+        return njit(cache=_USE_CACHE, fastmath=True, parallel=_PARALLEL_ENABLED)(func)
     return func
 
 
 def _maybe_jit_inline(func):
     """Apply @njit with forced inlining and fastmath for innermost hot functions."""
     if _USE_NUMBA:
-        return njit(cache=True, fastmath=True, inline="always")(func)
+        return njit(cache=_USE_CACHE, fastmath=True, inline="always")(func)
+    return func
+
+
+def _maybe_jit_inline_nan_aware(func):
+    """Like _maybe_jit_inline, but keep IEEE NaN semantics.
+
+    fastmath=True includes the 'nnan' flag, which lets LLVM assume NaNs do
+    not exist — compiling `math.isnan` guards away entirely. Functions that
+    must detect NaN (e.g. to break out of otherwise-infinite iteration) use
+    every fast-math flag except 'nnan'.
+    """
+    if _USE_NUMBA:
+        # No inline="always": inlining would splice the body into fastmath
+        # callers and recompile it under their 'nnan' assumption.
+        flags = {"ninf", "nsz", "arcp", "contract", "afn", "reassoc"}
+        return njit(cache=_USE_CACHE, fastmath=flags)(func)
     return func
 
 
@@ -103,7 +134,7 @@ def _alngam(x):
     return result
 
 
-@_maybe_jit_inline
+@_maybe_jit_inline_nan_aware
 def _gammad(x, p):
     """Incomplete gamma integral P(p, x) = gammainc(p, x).
 
@@ -113,6 +144,10 @@ def _gammad(x, p):
     elimit = -88.0
     oflo = 1.0e37
 
+    # NaN fails every comparison below, which would send the series loop
+    # spinning forever (cc stays NaN, cc <= tol never true). Propagate it.
+    if math.isnan(x) or math.isnan(p):
+        return math.nan
     if x < 0.0 or p <= 0.0:
         return 0.0
     if x == 0.0:
@@ -1110,22 +1145,27 @@ def solve(
     # Ensure contiguous 2D float64 arrays.
     # SAS_args and P_list may arrive as 3D from _create_sas_lookup;
     # the Fortran f2py binding auto-squeezed them, so we reshape here.
-    J_fullstep = np.ascontiguousarray(J_fullstep, dtype=np.float64)
-    Q_fullstep = np.ascontiguousarray(Q_fullstep, dtype=np.float64)
-    SAS_args = np.ascontiguousarray(SAS_args, dtype=np.float64).ravel().reshape(numargs_total, timeseries_length)
-    P_list = np.ascontiguousarray(P_list, dtype=np.float64).ravel().reshape(numargs_total, timeseries_length)
-    weights_fullstep = np.ascontiguousarray(weights_fullstep, dtype=np.float64)
-    sT_init_fullstep = np.ascontiguousarray(sT_init_fullstep, dtype=np.float64)
-    mT_init_fullstep = np.ascontiguousarray(mT_init_fullstep, dtype=np.float64)
-    C_J_fullstep = np.ascontiguousarray(C_J_fullstep, dtype=np.float64)
-    alpha_fullstep = np.ascontiguousarray(alpha_fullstep, dtype=np.float64)
-    k1_fullstep = np.ascontiguousarray(k1_fullstep, dtype=np.float64)
-    C_eq_fullstep = np.ascontiguousarray(C_eq_fullstep, dtype=np.float64)
-    C_old = np.ascontiguousarray(C_old, dtype=np.float64)
-    component_type = np.ascontiguousarray(component_type, dtype=np.int64)
-    numcomponent_list = np.ascontiguousarray(numcomponent_list, dtype=np.int64)
-    numargs_list = np.ascontiguousarray(numargs_list, dtype=np.int64)
-    output_these_fullsteps = np.ascontiguousarray(output_these_fullsteps, dtype=np.int64)
+    # np.require with the "W" (writable) flag: pandas 3 copy-on-write hands
+    # back read-only arrays for some column extractions and writable ones for
+    # others, and numba compiles a separate specialization for each
+    # read-only/writable combination (~15 s of surprise JIT per combination).
+    # Normalizing to writable keeps a single cached signature everywhere.
+    J_fullstep = np.require(J_fullstep, np.float64, ["C", "W"])
+    Q_fullstep = np.require(Q_fullstep, np.float64, ["C", "W"])
+    SAS_args = np.require(SAS_args, np.float64, ["C", "W"]).ravel().reshape(numargs_total, timeseries_length)
+    P_list = np.require(P_list, np.float64, ["C", "W"]).ravel().reshape(numargs_total, timeseries_length)
+    weights_fullstep = np.require(weights_fullstep, np.float64, ["C", "W"])
+    sT_init_fullstep = np.require(sT_init_fullstep, np.float64, ["C", "W"])
+    mT_init_fullstep = np.require(mT_init_fullstep, np.float64, ["C", "W"])
+    C_J_fullstep = np.require(C_J_fullstep, np.float64, ["C", "W"])
+    alpha_fullstep = np.require(alpha_fullstep, np.float64, ["C", "W"])
+    k1_fullstep = np.require(k1_fullstep, np.float64, ["C", "W"])
+    C_eq_fullstep = np.require(C_eq_fullstep, np.float64, ["C", "W"])
+    C_old = np.require(C_old, np.float64, ["C", "W"])
+    component_type = np.require(component_type, np.int64, ["C", "W"])
+    numcomponent_list = np.require(numcomponent_list, np.int64, ["C", "W"])
+    numargs_list = np.require(numargs_list, np.int64, ["C", "W"])
+    output_these_fullsteps = np.require(output_these_fullsteps, np.int64, ["C", "W"])
 
     # --- Allocate the recorded state arrays (age-first layout) ---
     if record_arrays is None:
@@ -1152,9 +1192,16 @@ def solve(
             return np.zeros((1,) * len(shape), dtype=out_dtype)
         if record_to is None:
             return np.zeros(shape, dtype=out_dtype)
-        return np.lib.format.open_memmap(
-            os.path.join(record_to, name + ".npy"), mode="w+", dtype=out_dtype, shape=shape
-        )
+        path = os.path.join(record_to, name + ".npy")
+        try:
+            return np.lib.format.open_memmap(path, mode="w+", dtype=out_dtype, shape=shape)
+        except OSError as e:
+            raise RuntimeError(
+                f"Could not create the memory-mapped state file {path!r}: {e}. On Windows "
+                "this commonly happens when results from a previous run still hold the "
+                "file open — release them (delete the old model/result objects) or use a "
+                "fresh record_to directory."
+            ) from e
 
     sT_out = _alloc("sT", (A, T_out + 1), "sT" in rec)
     mT_out = _alloc("mT", (A, T_out + 1, ns), "mT" in rec)
@@ -1281,7 +1328,7 @@ def solve(
 # Warm up the Numba parallel threading layer from Python at import time.
 # Initializing it lazily from within jit-compiled code can segfault.
 # ---------------------------------------------------------------------------
-if _USE_NUMBA and os.environ.get("MESAS_PARALLEL", "1") != "0":
+if _USE_NUMBA and _PARALLEL_ENABLED:
     # Initialise numba's threading layer from Python at import time.
     # Without this, the first invocation of a parallel=True function from
     # inside another njit function can segfault intermittently on some

@@ -118,9 +118,17 @@ getter methods or the :class:`~mesas.sas.model.ModelResult` object:
 
     sT = model.get_sT()             # age-ranked storage density
     pQ = model.get_pQ("Q")          # age-ranked transit time distribution
-    wb = model.get_water_balance()   # should be near machine precision
+    wb = model.get_water_balance()
 
     print(f"Water balance max residual: {abs(wb).max():.2e}")
+
+.. note::
+
+   The water/solute balance diagnostics close to machine precision only
+   when the model is run with ``record_state=True`` (the balances are
+   computed from the recorded state). With the default
+   ``record_state=False`` only the final step is recorded and the residual
+   is not meaningful.
 
 Using a JSON config file
 =========================

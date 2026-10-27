@@ -3,12 +3,13 @@ from __future__ import annotations
 from collections import OrderedDict
 from collections.abc import Iterable
 from copy import deepcopy
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import matplotlib.pyplot as plt
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+
 import numpy as np
 import pandas as pd
-from matplotlib.axes import Axes
 from scipy.interpolate import interp1d
 
 from mesas.sas.functions import Continuous, Piecewise
@@ -238,6 +239,8 @@ class SAS_Spec:
             Mapping of component labels to the line objects returned by
             each component's ``plot`` call.
         """
+        import matplotlib.pyplot as plt
+
         if ax is None:
             fig, ax = plt.subplots()
         componentlines = dict(
@@ -328,7 +331,16 @@ class Component:
         self._spec = spec.copy()
         self._data_df = data_df
         self.N = len(data_df)
-        self.weights = pd.Series(index=data_df.index, data=1.0) if is_only_component else data_df[label]
+        if is_only_component:
+            self.weights = pd.Series(index=data_df.index, data=1.0)
+        elif label in data_df.columns:
+            self.weights = data_df[label]
+        else:
+            raise ValueError(
+                f"SAS component '{label}' is one of several components for its flux, so its "
+                f"blending weights must be given in a data_df column named '{label}'. "
+                f"No such column exists. Available columns: {list(data_df.columns)}"
+            )
         ST = self.expand(spec.pop("ST")) if "ST" in spec else _NoneList()
         P = self.expand(spec.pop("P")) if "P" in spec else _NoneList()
         if "args" in spec:
@@ -383,6 +395,12 @@ class Component:
             return np.concatenate([[self.expand(x)] for x in value], axis=0).T
         else:
             if isinstance(value, str):
+                if value not in self._data_df.columns:
+                    raise ValueError(
+                        f"SAS component '{self.label}': parameter value '{value}' is a string, "
+                        f"so it is treated as a data_df column name, but no such column exists. "
+                        f"Available columns: {list(self._data_df.columns)}"
+                    )
                 return self._data_df[value].values
             else:
                 return float(value) * np.ones(self.N)
