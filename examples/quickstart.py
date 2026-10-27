@@ -20,7 +20,7 @@ data_df["J in [vol/time]"] = Q_steady
 data_df["Storage_vol"] = Storage_vol
 data_df["C [conc]"] = 0.0
 data_df.loc[pulse_start:pulse_end, "C [conc]"] = C_tracer_input
-data_df.to_csv("data.csv")
+data_df.to_csv("data.csv", index=False)
 
 # %%
 from mesas.sas.model import Model

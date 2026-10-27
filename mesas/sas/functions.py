@@ -19,13 +19,14 @@ returns values of ST.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats
-from matplotlib.axes import Axes
-from matplotlib.lines import Line2D
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.lines import Line2D
 from scipy.interpolate import interp1d
 from scipy.stats import rv_continuous
 
@@ -228,6 +229,8 @@ class _SASFunctionBase:
         list of matplotlib.lines.Line2D
             The plotted line(s).
         """
+        import matplotlib.pyplot as plt
+
         if ax is None:
             fig, ax = plt.subplots()
         return ax.plot(self.ST, self.P, **kwargs)
@@ -350,6 +353,14 @@ class Piecewise(_SASFunctionBase):
             # for decreasing values.
             if len(ST) <= 1:
                 raise ValueError(f"ST must have at least 2 values, got {len(ST)}")
+            if not np.all(np.isfinite(np.asarray(ST, dtype=float))):
+                bad = np.where(~np.isfinite(np.asarray(ST, dtype=float)))[0]
+                raise ValueError(
+                    f"ST values must be finite, got ST = {np.asarray(ST)} "
+                    f"(non-finite at position(s) {bad.tolist()}). A NaN here usually means a "
+                    "data_df column referenced by this SAS function contains missing values — "
+                    "fill or remove them before building the model."
+                )
             if ST[0] < 0:
                 raise ValueError(f"ST[0] must be >= 0, got {ST[0]}")
             if not np.all(np.diff(ST) > 0):
@@ -411,6 +422,12 @@ class Piecewise(_SASFunctionBase):
     def ST(self, new_ST: np.ndarray) -> None:
         if len(new_ST) <= 1:
             raise ValueError(f"ST must have at least 2 values, got {len(new_ST)}")
+        if not np.all(np.isfinite(new_ST)):
+            raise ValueError(
+                f"ST values must be finite, got ST = {new_ST}. A NaN here usually "
+                "means the data_df column this SAS function references contains "
+                "missing values — fill or remove them before building the model."
+            )
         if new_ST[0] < 0:
             raise ValueError(f"ST[0] must be >= 0, got {new_ST[0]}")
         if not np.all(np.diff(new_ST) > 0):
@@ -664,6 +681,12 @@ class Continuous(_SASFunctionBase):
                 else:
                     self._func = None
             self._builtinfunctype = self._builtinfuncdict[func]
+        elif use == "builtin":
+            raise ValueError(
+                f"Unknown built-in SAS function {func!r}. Built-in options (case-sensitive): "
+                f"{sorted(self._builtinfuncdict)}. For other distributions, set "
+                '"use": "scipy.stats" and pass a scipy.stats distribution name.'
+            )
         elif use == "scipy.stats" and isinstance(func, rv_continuous):
             self._func = func
             self._builtinfunctype = None
@@ -671,8 +694,22 @@ class Continuous(_SASFunctionBase):
             self._func = getattr(scipy.stats, func)
             self._builtinfunctype = None
         else:
-            raise Exception("'use' keyword must be either 'builtin' or 'scipy.stats'")
+            raise ValueError("'use' keyword must be either 'builtin' or 'scipy.stats'")
         self._use = use
+
+        if use == "builtin":
+            required = {
+                "gamma": ("loc", "scale", "a"),
+                "beta": ("loc", "scale", "a", "b"),
+                "kumaraswamy": ("loc", "scale", "a", "b"),
+            }[func]
+            missing = [k for k in required if k not in func_kwargs]
+            if missing:
+                raise ValueError(
+                    f"SAS function '{func}' requires args {list(required)}; missing: {missing}. "
+                    "Provide them in the spec's 'args' dict (values may be numbers or "
+                    "names of data_df columns)."
+                )
 
         self._frozen_func = self._func(**func_kwargs)
         if self._use == "builtin":
@@ -689,6 +726,25 @@ class Continuous(_SASFunctionBase):
                 self._argsS += [func_kwargs["loc"], func_kwargs["scale"]]
                 self._argsS += [func_kwargs["a"], func_kwargs["b"]]
             self._argsP = np.ones_like(self._argsS) * np.nan
+            # Discretise the exact CDF so plotting utilities and
+            # SAS_Spec.make_spec_ts (which need ST/P breakpoints) also work
+            # for built-in distributions. The solver never uses this table —
+            # it evaluates built-in CDFs exactly.
+            self.nsegment = nsegment
+            self.ST_max = float(ST_max)
+            try:
+                P_grid = np.linspace(0.0, 1.0, self.nsegment + 1, endpoint=True)
+                with np.errstate(all="ignore"):
+                    ST_grid = np.asarray(self._frozen_func.ppf(P_grid), dtype=float)
+                    if not np.isfinite(ST_grid[-1]):
+                        # unbounded upper tail (e.g. gamma): cap for plotting
+                        ST_grid[-1] = float(self._frozen_func.ppf(0.999))
+                    self._ST = ST_grid
+                    self._P = np.asarray(self._frozen_func.cdf(ST_grid), dtype=float)
+            except (ValueError, TypeError):
+                # Pathological parameters: leave the table unset; the solver
+                # path is unaffected and validation reports bad parameters.
+                pass
         elif self._use == "scipy.stats":
             # generate a piecewise approximation
             self.ST_max = float(ST_max)

@@ -8,6 +8,6 @@ try:
     __version__ = version("mesas")
 except PackageNotFoundError:
     # Running from an uninstalled source tree
-    __version__ = "2.0.1+dev"
+    __version__ = "2.0.2+dev"
 
 __all__ = ["Model", "ModelOptions", "ModelResult", "SoluteSpec", "__version__"]

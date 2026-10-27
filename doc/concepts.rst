@@ -72,7 +72,8 @@ MESAS supports several types of SAS functions:
     creates more complex shapes.
 
 **Gamma distribution**
-    A flexible one-parameter family. The shape parameter :math:`a`
+    A flexible family with shape, scale, and location parameters
+    (``a``, ``scale``, ``loc``). The shape parameter :math:`a`
     controls whether young water (:math:`a < 1`) or intermediate-aged
     water (:math:`a > 1`) is preferentially discharged.
     Specified with ``"func": "gamma"``.
@@ -123,6 +124,6 @@ Further reading
 ===============
 
 - `Harman (2015) <https://doi.org/10.1002/2014WR015707>`_ — Original SAS theory paper
-- `Harman and Xu Fei (2024) <https://gmd.copernicus.org/articles/17/477/2024/>`_ — Unified framework for age and transit time distributions
-- `Benettin et al. (2022) <https://doi.org/10.5194/gmd-15-3881-2022>`_ — MESAS model description paper (GMD)
+- `Harman and Xu Fei (2024) <https://gmd.copernicus.org/articles/17/477/2024/>`_ — mesas.py model description paper (GMD)
+- `Benettin et al. (2022) <https://doi.org/10.5194/gmd-15-3881-2022>`_ — Transport with SAS functions: a unified framework (GMD)
 - `HydroLearn course <https://edx.hydrolearn.org/courses/course-v1:JHU+570.412+Sp2020>`_ — Free online course on SAS theory
